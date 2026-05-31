@@ -1,0 +1,15 @@
+# Python 忽略文件
+__pycache__/
+*.pyc
+.venv/
+env/
+.env
+
+# 前端忽略文件
+node_modules/
+dist/
+.DS_Store
+
+# IDE 忽略文件
+.vscode/
+.idea/
