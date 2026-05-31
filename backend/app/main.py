@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.exceptions import global_exception_handler
+from app.webhook import router as webhook_router  # 👈 新增：引入路由
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -9,7 +10,6 @@ def create_app() -> FastAPI:
         version="1.0.0"
     )
 
-    # 1. 配置跨域中间件
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -18,10 +18,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # 2. 注册全局异常处理器
     app.add_exception_handler(Exception, global_exception_handler)
 
-    # 3. 注册基础健康检查路由
+    # 注册路由
+    app.include_router(webhook_router)  # 👈 新增：注册 Webhook 监听接口
+
     @app.get("/health", tags=["Infrastructure"])
     async def health_check():
         return {
