@@ -2,7 +2,8 @@ from fastapi import APIRouter, Request, Header, HTTPException
 import hmac
 import hashlib
 import logging
-from app.diff_parser import DiffParser  # 👈 新增：引入解析器
+from app.diff_parser import DiffParser
+from app.llm_service import LLMReviewService  # 👈 新增：引入大模型驱动引擎
 
 logger = logging.getLogger("app")
 router = APIRouter(prefix="/api", tags=["Webhook"])
@@ -37,23 +38,29 @@ async def github_webhook(request: Request, x_hub_signature_256: str = Header(Non
         
         logger.info(f"🚀 [Webhook] 监听到 PR #{pr_number}，正在调用引擎拉取并解析代码...")
         
-        # 👈 核心亮点：触发异步抓取与智能切片解析
         try:
+            # 1. 抓取并进行流式代码切片
             raw_diff = await DiffParser.fetch_diff_text(diff_url)
             structured_diff = DiffParser.parse_diff(raw_diff)
             logger.info(f"✅ [Parser] 成功完成代码切片，共解析了 {len(structured_diff)} 个有效业务文件")
+            
+            # 2. 【最终合体】将切片后的数据定向喂给大模型评审引擎
+            logger.info(f"🤖 [AI-Review] 正在将代码流传送至大模型适配层...")
+            review_report = await LLMReviewService.review_code_chunks(structured_diff)
+            logger.info(f"🎉 [AI-Review] 大模型自动化审计报告生成完毕！")
+            
         except Exception as e:
-            logger.error(f"❌ [Parser] 代码解析链条崩溃: {str(e)}")
-            structured_diff = []
+            logger.error(f"❌ [Pipeline] 全链路通信故障: {str(e)}")
+            review_report = f"# ❌ 自动评审链条故障\n解析与AI交互阶段崩溃: {str(e)}"
 
+        # 最终返回给 GitHub 或前端的工业级结构化载荷
         return {
             "success": True,
-            "message": f"Successfully processed PR #{pr_number}",
+            "message": f"Successfully reviewed PR #{pr_number}",
             "data": {
                 "repo": repo_name,
                 "pr_number": pr_number,
-                "review_files_count": len(structured_diff),
-                "structured_chunks": structured_diff  # 包含切片后的结构化数据
+                "report": review_report  # 🌟 核心亮点：里面包裹着惊艳的 Markdown 自动化评审报告
             }
         }
         
